@@ -236,10 +236,14 @@ def main():
     ap.add_argument("--accounts-large", type=int, default=50)
     ap.add_argument("--threads", type=int, default=16)
     ap.add_argument("--txns-per-thread", type=int, default=50)
+    ap.add_argument("--naive-txns-per-thread", type=int, default=10,
+                     help="naive_transfer_funds is deliberately pathological under contention; keep this small")
     ap.add_argument("--opening-balance", default="1000000.0000")
     args = ap.parse_args()
 
-    report = {"run_at": datetime.now(timezone.utc).isoformat(), "config": vars(args), "experiments": {}}
+    safe_config = dict(vars(args))
+    safe_config["dsn"] = "[redacted]"  # never persist connection credentials in results
+    report = {"run_at": datetime.now(timezone.utc).isoformat(), "config": safe_config, "experiments": {}}
 
     print("=" * 78)
     print("EXPERIMENT 1: correctness under contention")
@@ -284,10 +288,11 @@ def main():
     print("=" * 78)
     exp3 = {}
     for proc_name, label in [("transfer_funds", "fixed_order"), ("naive_transfer_funds", "naive_order")]:
+        n_txns = args.txns_per_thread if proc_name == "transfer_funds" else args.naive_txns_per_thread
         client_id, account_ids = seed_accounts(args.dsn, args.accounts_small, args.opening_balance)[:2]
-        result = run_workload(args.dsn, client_id, account_ids, args.threads, args.txns_per_thread,
+        result = run_workload(args.dsn, client_id, account_ids, args.threads, n_txns,
                               "READ COMMITTED", proc_name=proc_name)
-        summary = summarize(label, result, args.threads, args.txns_per_thread)
+        summary = summarize(label, result, args.threads, n_txns)
         exp3[label] = summary
         print(f"\n[{label}] procedure={proc_name}  accounts={args.accounts_small}")
         print(f"  committed={summary['committed']}/{summary['attempted']}  deadlocks={summary['deadlocks']}  retries={summary['retries_used']}")

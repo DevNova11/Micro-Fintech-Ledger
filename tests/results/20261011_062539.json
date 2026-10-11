@@ -1,0 +1,132 @@
+{
+  "run_at": "2026-10-11T06:22:53.332600+00:00",
+  "config": {
+    "dsn": "[redacted]",
+    "accounts_small": 5,
+    "accounts_large": 80,
+    "threads": 20,
+    "txns_per_thread": 25,
+    "naive_txns_per_thread": 8,
+    "opening_balance": "1000000.0000"
+  },
+  "experiments": {
+    "1_correctness_under_contention": {
+      "READ COMMITTED": {
+        "label": "READ COMMITTED",
+        "attempted": 500,
+        "committed": 500,
+        "insufficient_funds": 0,
+        "deadlocks": 0,
+        "serialization_failures": 0,
+        "other_errors": 0,
+        "retries_used": 0,
+        "wall_clock_s": 1.092,
+        "throughput_txn_per_s": 457.81,
+        "latency_ms_p50": 9.464,
+        "latency_ms_p95": 133.627,
+        "latency_ms_p99": 230.847,
+        "latency_ms_mean": 31.526,
+        "integrity": {
+          "audit_chain_intact": true,
+          "broken_at_log_id": null,
+          "balance_mismatches": [],
+          "total_system_balance": 5000000.0,
+          "expected_total_balance": 5000000.0,
+          "money_conserved": true
+        }
+      },
+      "SERIALIZABLE": {
+        "label": "SERIALIZABLE",
+        "attempted": 500,
+        "committed": 209,
+        "insufficient_funds": 0,
+        "deadlocks": 0,
+        "serialization_failures": 291,
+        "other_errors": 0,
+        "retries_used": 2269,
+        "wall_clock_s": 1.444,
+        "throughput_txn_per_s": 144.7,
+        "latency_ms_p50": 19.31,
+        "latency_ms_p95": 57.315,
+        "latency_ms_p99": 79.814,
+        "latency_ms_mean": 24.304,
+        "integrity": {
+          "audit_chain_intact": true,
+          "broken_at_log_id": null,
+          "balance_mismatches": [],
+          "total_system_balance": 5000000.0,
+          "expected_total_balance": 5000000.0,
+          "money_conserved": true
+        }
+      }
+    },
+    "2_throughput_vs_isolation": {
+      "READ COMMITTED": {
+        "label": "READ COMMITTED",
+        "attempted": 500,
+        "committed": 500,
+        "insufficient_funds": 0,
+        "deadlocks": 0,
+        "serialization_failures": 0,
+        "other_errors": 0,
+        "retries_used": 0,
+        "wall_clock_s": 0.942,
+        "throughput_txn_per_s": 530.74,
+        "latency_ms_p50": 21.839,
+        "latency_ms_p95": 71.638,
+        "latency_ms_p99": 99.121,
+        "latency_ms_mean": 29.474
+      },
+      "SERIALIZABLE": {
+        "label": "SERIALIZABLE",
+        "attempted": 500,
+        "committed": 189,
+        "insufficient_funds": 0,
+        "deadlocks": 0,
+        "serialization_failures": 311,
+        "other_errors": 0,
+        "retries_used": 2169,
+        "wall_clock_s": 1.573,
+        "throughput_txn_per_s": 120.16,
+        "latency_ms_p50": 18.493,
+        "latency_ms_p95": 72.926,
+        "latency_ms_p99": 89.311,
+        "latency_ms_mean": 26.544
+      }
+    },
+    "3_deadlock_fixed_vs_naive": {
+      "fixed_order": {
+        "label": "fixed_order",
+        "attempted": 500,
+        "committed": 500,
+        "insufficient_funds": 0,
+        "deadlocks": 0,
+        "serialization_failures": 0,
+        "other_errors": 0,
+        "retries_used": 0,
+        "wall_clock_s": 1.085,
+        "throughput_txn_per_s": 460.88,
+        "latency_ms_p50": 10.25,
+        "latency_ms_p95": 129.955,
+        "latency_ms_p99": 231.173,
+        "latency_ms_mean": 32.157
+      },
+      "naive_order": {
+        "label": "naive_order",
+        "attempted": 160,
+        "committed": 129,
+        "insufficient_funds": 0,
+        "deadlocks": 31,
+        "serialization_failures": 0,
+        "other_errors": 0,
+        "retries_used": 453,
+        "wall_clock_s": 159.592,
+        "throughput_txn_per_s": 0.81,
+        "latency_ms_p50": 8031.96,
+        "latency_ms_p95": 46134.139,
+        "latency_ms_p99": 56041.016,
+        "latency_ms_mean": 12956.171
+      }
+    }
+  }
+}
