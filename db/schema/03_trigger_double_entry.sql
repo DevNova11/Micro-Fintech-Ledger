@@ -1,18 +1,4 @@
--- ============================================================================
--- 03_trigger_double_entry.sql — debit = credit invariant enforcement
---
--- Design (Review 1, slide 20 — "Math Check Trigger"):
---   "Runs a database check before saving; if debits do not equal credits,
---    the entire transfer cancels automatically."
---
--- Implementation: a DEFERRABLE CONSTRAINT TRIGGER, fired AFTER INSERT on
--- entry_lines, checked at COMMIT time (not per-row). This lets the transfer
--- procedure insert the debit leg and the credit leg as two separate
--- statements inside one transaction — the invariant is only evaluated once,
--- after both legs exist, rather than failing on the first (unbalanced)
--- insert. This directly addresses research gap #5 (connecting algebraic/REA
--- double-entry theory to concrete trigger logic).
--- ============================================================================
+-- debit = credit invariant, checked at COMMIT (deferred constraint trigger)
 
 CREATE OR REPLACE FUNCTION fn_check_double_entry_balance()
 RETURNS TRIGGER AS $$
@@ -37,12 +23,11 @@ BEGIN
             USING ERRCODE = 'check_violation';
     END IF;
 
-    RETURN NULL; -- return value ignored for AFTER triggers
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
--- DEFERRABLE INITIALLY DEFERRED: the check runs once at COMMIT, after every
--- statement in the transaction has run — not after each individual INSERT.
+-- DEFERRABLE INITIALLY DEFERRED: fires once at COMMIT, not per insert
 CREATE CONSTRAINT TRIGGER trg_check_double_entry_balance
     AFTER INSERT ON entry_lines
     DEFERRABLE INITIALLY DEFERRED
