@@ -34,16 +34,6 @@
   }
   header h1 { margin: 0; font-size: 19px; font-weight: 600; }
   header .sub { color: #a9b4d0; font-size: 13px; margin-top: 2px; }
-  #health-badge {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--navy-light);
-    border: 1px solid #334069;
-  }
-  #health-badge.ok { color: #6be39b; }
-  #health-badge.bad { color: #ff9b9b; }
-
   main {
     max-width: 1100px;
     margin: 0 auto;
@@ -124,7 +114,6 @@
     <h1>Micro-FinTech Ledger</h1>
     <div class="sub">Live demo — every action here is a real call against your PostgreSQL database</div>
   </div>
-  <span id="health-badge">checking…</span>
 </header>
 
 <main>
@@ -217,23 +206,6 @@ async function api(path, opts) {
   const data = await res.json();
   if (!res.ok && !opts) throw new Error(data.error || 'request failed');
   return { ok: res.ok, data };
-}
-
-async function checkHealth() {
-  const badge = document.getElementById('health-badge');
-  try {
-    const { ok, data } = await api('/api/health');
-    if (ok && data.ok) {
-      badge.textContent = `connected · ${data.database}`;
-      badge.className = 'ok';
-    } else {
-      badge.textContent = data.error || 'disconnected';
-      badge.className = 'bad';
-    }
-  } catch (e) {
-    badge.textContent = 'disconnected';
-    badge.className = 'bad';
-  }
 }
 
 async function loadAccounts() {
@@ -364,9 +336,7 @@ document.getElementById('seed-btn').addEventListener('click', async () => {
   }
 });
 
-checkHealth();
 refreshAll();
-setInterval(checkHealth, 15000);
 </script>
 </body>
 </html>
