@@ -58,6 +58,27 @@ python3 tests/concurrency_harness.py --dsn "dbname=fintech_ledger host=127.0.0.1
 
 Runs three experiments: correctness under high contention (READ COMMITTED vs SERIALIZABLE), throughput/latency vs isolation level, and deadlock rate (fixed lock order vs naive order). Writes a JSON summary to `tests/results/`. See `docs/benchmark_results.md` for a prior run's findings.
 
+## Live demo web app
+
+`app/` is a small Flask UI + API over the real schema and `transfer_funds()`
+procedure — no mock data, every click is a real query/call against your
+PostgreSQL instance. Useful for walking through the project interactively
+(accounts, a transfer form, recent transactions, the audit hash-chain status,
+and risk alerts) instead of only running the SQL test scripts.
+
+```bash
+cd app
+pip install -r requirements.txt   # pip install --break-system-packages -r requirements.txt on some setups
+
+# connection settings, if different from the defaults (localhost/fintech_ledger/postgres):
+#   PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
+set PGPASSWORD=newpassword123        # Windows cmd
+python server.py
+```
+
+Then open http://127.0.0.1:5050. If `accounts` is empty, use the "Seed demo
+accounts" button on the page (Alice/Bob/Carla, INR) to get started quickly.
+
 ## Using transfer_funds()
 
 ```sql

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Micro-FinTech Ledger — Live Demo</title>
+<style>
+  :root {
+    --navy: #16213e;
+    --navy-light: #1f2d52;
+    --accent: #3d8bfd;
+    --ok: #1f9d55;
+    --bad: #d64545;
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --border: #e1e5ee;
+    --text: #1a1f36;
+    --text-muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  header .sub { color: #a9b4d0; font-size: 13px; margin-top: 2px; }
+  #health-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--navy-light);
+    border: 1px solid #334069;
+  }
+  #health-badge.ok { color: #6be39b; }
+  #health-badge.bad { color: #ff9b9b; }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .card .note { color: var(--text-muted); font-size: 12px; margin: 0 0 14px; }
+  .full-width { grid-column: 1 / -1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+
+  .table-scroll { max-height: 320px; overflow: auto; }
+
+  form.transfer { display: flex; flex-direction: column; gap: 10px; }
+  form.transfer label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 3px; }
+  form.transfer select, form.transfer input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(0.95); }
+  button.secondary { background: var(--navy); }
+  #transfer-result { font-size: 13px; margin-top: 4px; min-height: 18px; }
+  #transfer-result.ok { color: var(--ok); }
+  #transfer-result.bad { color: var(--bad); }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+
+  .severity { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .severity.MEDIUM { background: #fff3cd; color: #8a6400; }
+  .severity.HIGH, .severity.CRITICAL { background: #fde0e0; color: #a01818; }
+  .severity.LOW { background: #e6f4ea; color: #1f6b3a; }
+
+  #empty-state { text-align: center; padding: 30px 10px; color: var(--text-muted); }
+  #empty-state button { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Micro-FinTech Ledger</h1>
+    <div class="sub">Live demo — every action here is a real call against your PostgreSQL database</div>
+  </div>
+  <span id="health-badge">checking…</span>
+</header>
+
+<main>
+  <div class="card full-width" id="empty-state-card" hidden>
+    <div id="empty-state">
+      <p>No accounts in <code>fintech_ledger</code> yet.</p>
+      <button id="seed-btn">Seed demo accounts (Alice, Bob, Carla)</button>
+    </div>
+  </div>
+
+  <div class="card" id="accounts-card">
+    <h2>Accounts</h2>
+    <p class="note">cached_balance, straight from the accounts table</p>
+    <div class="table-scroll">
+      <table id="accounts-table">
+        <thead><tr><th>Account</th><th>Holder</th><th>Ccy</th><th class="num">Balance</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Send a transfer</h2>
+    <p class="note">Calls <code>transfer_funds()</code> directly</p>
+    <form class="transfer" id="transfer-form">
+      <div>
+        <label for="client">Client</label>
+        <select id="client" required></select>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="from-account">From</label>
+          <select id="from-account" required></select>
+        </div>
+        <div>
+          <label for="to-account">To</label>
+          <select id="to-account" required></select>
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="amount">Amount (INR)</label>
+          <input id="amount" type="number" step="0.01" min="0.01" required>
+        </div>
+        <div>
+          <label for="idempotency-key">Idempotency key</label>
+          <input id="idempotency-key" type="text" placeholder="auto-generated">
+        </div>
+      </div>
+      <button type="submit">Transfer</button>
+      <div id="transfer-result"></div>
+    </form>
+  </div>
+
+  <div class="card full-width">
+    <h2>Recent transactions</h2>
+    <p class="note">transactions joined with their debit/credit entry_lines</p>
+    <div class="table-scroll">
+      <table id="transactions-table">
+        <thead><tr><th>ID</th><th>Status</th><th>From</th><th>To</th><th class="num">Amount</th><th>Settled</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Audit hash chain</h2>
+    <p class="note"><code>fn_verify_audit_chain()</code></p>
+    <div id="audit-status" class="badge"><span class="dot"></span><span>checking…</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Risk alerts</h2>
+    <p class="note">large-value transfers &ge; the configured threshold</p>
+    <div class="table-scroll">
+      <table id="risk-table">
+        <thead><tr><th>Txn</th><th>Type</th><th>Severity</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+const fmt = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleString() : '—';
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok && !opts) throw new Error(data.error || 'request failed');
+  return { ok: res.ok, data };
+}
+
+async function checkHealth() {
+  const badge = document.getElementById('health-badge');
+  try {
+    const { ok, data } = await api('/api/health');
+    if (ok && data.ok) {
+      badge.textContent = `connected · ${data.database}`;
+      badge.className = 'ok';
+    } else {
+      badge.textContent = data.error || 'disconnected';
+      badge.className = 'bad';
+    }
+  } catch (e) {
+    badge.textContent = 'disconnected';
+    badge.className = 'bad';
+  }
+}
+
+async function loadAccounts() {
+  const { data: accounts } = await api('/api/accounts');
+  const tbody = document.querySelector('#accounts-table tbody');
+  tbody.innerHTML = '';
+  document.getElementById('empty-state-card').hidden = accounts.length > 0;
+  document.getElementById('accounts-card').hidden = accounts.length === 0;
+
+  const fromSel = document.getElementById('from-account');
+  const toSel = document.getElementById('to-account');
+  fromSel.innerHTML = '';
+  toSel.innerHTML = '';
+
+  accounts.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${a.account_number}</td><td>${a.holder_name}</td><td>${a.currency_code}</td>
+      <td class="num">${fmt.format(a.cached_balance)}</td>`;
+    tbody.appendChild(tr);
+
+    const label = `${a.account_number} (${a.holder_name}) — ₹${fmt.format(a.cached_balance)}`;
+    fromSel.appendChild(new Option(label, a.account_id));
+    toSel.appendChild(new Option(label, a.account_id));
+  });
+  if (accounts.length > 1) toSel.selectedIndex = 1;
+}
+
+async function loadClients() {
+  const { data: clients } = await api('/api/clients');
+  const sel = document.getElementById('client');
+  sel.innerHTML = '';
+  clients.forEach(c => sel.appendChild(new Option(c.client_name, c.client_id)));
+}
+
+async function loadTransactions() {
+  const { data: txns } = await api('/api/transactions');
+  const tbody = document.querySelector('#transactions-table tbody');
+  tbody.innerHTML = '';
+  txns.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>#${t.transaction_id}</td><td>${t.status}</td><td>${t.debit_account}</td>
+      <td>${t.credit_account}</td><td class="num">${fmt.format(t.debit_amount)}</td>
+      <td>${fmtDate(t.settled_at)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadAudit() {
+  const { data } = await api('/api/audit');
+  const el = document.getElementById('audit-status');
+  const dot = el.querySelector('.dot');
+  const label = el.querySelector('span:last-child');
+  dot.className = 'dot ' + (data.intact ? 'ok' : 'bad');
+  label.textContent = data.intact
+    ? `Intact — ${data.log_rows} entries hash-chained`
+    : `Broken at log_id ${data.broken_at_log_id}`;
+}
+
+async function loadRiskAlerts() {
+  const { data: alerts } = await api('/api/risk-alerts');
+  const tbody = document.querySelector('#risk-table tbody');
+  tbody.innerHTML = '';
+  alerts.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>#${a.transaction_id}</td><td>${a.alert_type}</td>
+      <td><span class="severity ${a.severity}">${a.severity}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function refreshAll() {
+  await Promise.all([loadAccounts(), loadClients(), loadTransactions(), loadAudit(), loadRiskAlerts()]);
+}
+
+document.getElementById('transfer-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById('transfer-result');
+  resultEl.textContent = 'Sending…';
+  resultEl.className = '';
+
+  const body = {
+    client_id: document.getElementById('client').value,
+    from_account_id: document.getElementById('from-account').value,
+    to_account_id: document.getElementById('to-account').value,
+    amount: document.getElementById('amount').value,
+    currency_code: 'INR',
+    idempotency_key: document.getElementById('idempotency-key').value || undefined,
+  };
+
+  try {
+    const res = await fetch('/api/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      resultEl.textContent = `Transaction #${data.transaction_id} committed.`;
+      resultEl.className = 'ok';
+      document.getElementById('amount').value = '';
+      document.getElementById('idempotency-key').value = '';
+      await refreshAll();
+    } else {
+      resultEl.textContent = data.error || 'Transfer failed.';
+      resultEl.className = 'bad';
+    }
+  } catch (err) {
+    resultEl.textContent = 'Request failed: ' + err.message;
+    resultEl.className = 'bad';
+  }
+});
+
+document.getElementById('seed-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('seed-btn');
+  btn.disabled = true;
+  btn.textContent = 'Seeding…';
+  try {
+    const res = await fetch('/api/seed-demo', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      await refreshAll();
+    } else {
+      alert(data.error || 'Seed failed.');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Seed demo accounts (Alice, Bob, Carla)';
+  }
+});
+
+checkHealth();
+refreshAll();
+setInterval(checkHealth, 15000);
+</script>
+</body>
+</html>
