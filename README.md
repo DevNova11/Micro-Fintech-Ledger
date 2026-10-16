@@ -58,6 +58,25 @@ python3 tests/concurrency_harness.py --dsn "dbname=fintech_ledger host=127.0.0.1
 
 Runs three experiments: correctness under high contention (READ COMMITTED vs SERIALIZABLE), throughput/latency vs isolation level, and deadlock rate (fixed lock order vs naive order). Writes a JSON summary to `tests/results/`. See `docs/benchmark_results.md` for a prior run's findings.
 
+## PaySim replay (real synthetic dataset)
+
+`tests/paysim_replay.py` replays the first N rows of the PaySim dataset
+(Lopez-Rojas et al., 2016) through `transfer_funds()` from concurrent threads,
+under READ COMMITTED and SERIALIZABLE. Each distinct `nameOrig`/`nameDest`
+becomes a ledger account, so contention comes from the dataset itself. The CSV
+is not stored in the repo (`Dataset/` and `*.csv` are git-ignored).
+
+```bash
+python tests/paysim_replay.py --csv "Dataset/paysim dataset.csv" ^
+  --dsn "dbname=fintech_ledger host=localhost user=postgres password=newpassword123" ^
+  --rows 20000 --threads 20
+```
+
+Prints a contention profile (distinct accounts, hottest account, share of
+postings on the top 1% of accounts), then committed/failed counts, throughput,
+latency percentiles and the integrity checks for each isolation level. Results
+go to `tests/results/paysim_<timestamp>.json`.
+
 ## Live demo web app
 
 `app/` is a small Flask UI + API over the real schema and `transfer_funds()`
