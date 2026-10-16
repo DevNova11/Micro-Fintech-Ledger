@@ -1,4 +1,5 @@
--- append-only enforcement: block UPDATE/DELETE on ledger tables
+-- Ledger tables are append-only: you can add rows but never edit or delete them.
+-- If a mistake needs fixing, post a new correcting transaction instead.
 
 CREATE OR REPLACE FUNCTION fn_block_mutation()
 RETURNS TRIGGER AS $$
@@ -21,7 +22,7 @@ CREATE TRIGGER trg_audit_merkle_log_immutable
     FOR EACH ROW
     EXECUTE FUNCTION fn_block_mutation('log_id');
 
--- transactions: DELETE always blocked; UPDATE blocked once terminal
+-- transactions: can never be deleted, and can only be updated while still PENDING
 CREATE OR REPLACE FUNCTION fn_block_transaction_mutation()
 RETURNS TRIGGER AS $$
 BEGIN

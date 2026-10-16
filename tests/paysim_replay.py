@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-# paysim_replay.py -- replay real PaySim transactions through transfer_funds()
+# Replays real PaySim transactions through transfer_funds().
 #
-# PaySim (Lopez-Rojas et al., 2016) is a synthetic mobile-money dataset. This
-# script maps each distinct PaySim account id (nameOrig / nameDest) to a ledger
-# account and replays the first N rows, in file order, through transfer_funds()
-# from many concurrent client threads, under READ COMMITTED and SERIALIZABLE.
+# PaySim (Lopez-Rojas et al., 2016) is a public, simulated mobile-money
+# dataset. This script takes the first N rows of the CSV, makes one ledger
+# account for every sender/receiver name it sees, then sends the transfers
+# through transfer_funds() from many threads at once. It does this twice,
+# under READ COMMITTED and under SERIALIZABLE.
 #
-# Unlike concurrency_harness.py (uniform random pairs over a fixed pool), the
-# contention here comes from the dataset itself: a few destination accounts
-# (merchants) receive many payments, most customers appear once or twice.
+# The other benchmark (concurrency_harness.py) picks random account pairs.
+# Here the pattern comes from the dataset: a few merchants get lots of
+# payments, while most customers show up only once or twice.
 #
-# usage:
+# Run it with:
 #   python3 tests/paysim_replay.py --csv "<path>/paysim dataset.csv" \
 #       --dsn "dbname=fintech_ledger host=localhost user=postgres password=..." \
 #       --rows 20000 --threads 20
@@ -35,7 +36,7 @@ from concurrency_harness import (  # noqa: E402
     DEADLOCK_DETECTED, SERIALIZATION_FAILURE, RunResult, summarize,
 )
 
-OPENING_BALANCE = "100000000000.0000"  # 1e11, so insufficient funds never occurs
+OPENING_BALANCE = "100000000000.0000"  # huge on purpose, so nobody ever runs out of money
 
 
 def load_rows(path, n_rows, skip, types):

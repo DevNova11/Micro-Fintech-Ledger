@@ -1,4 +1,5 @@
--- debit = credit invariant, checked at COMMIT (deferred constraint trigger)
+-- Rule: for every transaction, total debits must equal total credits.
+-- Checked when the transaction commits, not on every insert.
 
 CREATE OR REPLACE FUNCTION fn_check_double_entry_balance()
 RETURNS TRIGGER AS $$
@@ -27,7 +28,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- DEFERRABLE INITIALLY DEFERRED: fires once at COMMIT, not per insert
+-- DEFERRABLE INITIALLY DEFERRED = wait until COMMIT. We have to wait because
+-- after the first line is inserted the transaction is temporarily unbalanced.
 CREATE CONSTRAINT TRIGGER trg_check_double_entry_balance
     AFTER INSERT ON entry_lines
     DEFERRABLE INITIALLY DEFERRED

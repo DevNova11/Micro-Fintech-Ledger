@@ -1,26 +1,19 @@
 """
-Micro-FinTech Ledger — local demo web app.
+Demo web app for the ledger.
 
-A thin Flask API + single-page UI over the real `transfer_funds()` procedure
-and schema. Meant to run on the same machine as your PostgreSQL instance —
-every action in the UI is a real call against your actual database (no mock
-data), so you can watch accounts, entry_lines, risk_alerts and the audit hash
-chain update live as you click through transfers.
+A small Flask server and one web page on top of the real database. Nothing
+here is fake: every button runs a real query, or calls transfer_funds(), on
+your PostgreSQL database. Send a transfer and you can watch the balances,
+risk alerts and audit chain change.
 
-Run:
+Run it:
     pip install -r requirements.txt
-    set PGPASSWORD=newpassword123   (Windows cmd)  /  export PGPASSWORD=... (bash)
+    set PGPASSWORD=newpassword123        (Windows)
     python server.py
+then open http://127.0.0.1:5050
 
-Then open http://127.0.0.1:5050 in your browser.
-
-Connection settings read from environment variables, with sane local
-defaults — override any of these if your setup differs:
-    PGHOST      default: localhost
-    PGPORT      default: 5432
-    PGDATABASE  default: fintech_ledger
-    PGUSER      default: postgres
-    PGPASSWORD  default: newpassword123
+Database settings come from environment variables. The defaults below work
+for a normal local setup: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.
 """
 
 import os
@@ -49,7 +42,7 @@ def get_conn():
 
 
 def to_jsonable(value):
-    """psycopg2 hands back Decimal/datetime objects the json module can't serialize."""
+    """Postgres gives us Decimal numbers, but JSON can't hold those, so turn them into floats."""
     if isinstance(value, Decimal):
         return float(value)
     return value
@@ -192,8 +185,8 @@ def transfer():
             transaction_id = cur.fetchone()[0]
         return jsonify({"ok": True, "transaction_id": transaction_id, "idempotency_key": idempotency_key})
     except psycopg2.Error as exc:
-        # transfer_funds() raises plain RAISE EXCEPTION for business-rule failures
-        # (insufficient funds, self-transfer, ...) — surface the DB's own message.
+        # The database raises an error for things like insufficient funds or
+        # sending to yourself. Just pass its message on to the page.
         msg = exc.diag.message_primary if exc.diag and exc.diag.message_primary else str(exc)
         return jsonify({"ok": False, "error": msg}), 400
     finally:
@@ -202,7 +195,7 @@ def transfer():
 
 @app.route("/api/seed-demo", methods=["POST"])
 def seed_demo():
-    """Idempotent: only inserts if no accounts exist yet."""
+    """Adds the demo accounts, but only if the database has none yet."""
     conn = get_conn()
     try:
         with conn.cursor() as cur:

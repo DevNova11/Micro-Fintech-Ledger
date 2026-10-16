@@ -1,7 +1,7 @@
--- naive_transfer_funds: comparison-only variant, NO fixed lock ordering
--- locks accounts in request order instead of sorted order -- used by the
--- concurrency harness to measure deadlock rate with vs without ordering.
--- not part of the production design.
+-- naive_transfer_funds(): same as transfer_funds() but WITHOUT the fixed lock order.
+-- It locks the sender first and the receiver second, whatever their ids are.
+-- Only used by the benchmark, to show how many deadlocks that causes.
+-- Not meant for real use.
 
 CREATE OR REPLACE FUNCTION naive_transfer_funds(
     p_client_id        BIGINT,
@@ -42,7 +42,7 @@ BEGIN
     UPDATE idempotency_keys SET transaction_id = v_transaction_id
     WHERE client_id = p_client_id AND idempotency_key = p_idempotency_key;
 
-    -- no sort: deliberate defect under test
+    -- no sorting here on purpose, this is the thing being tested
     PERFORM 1 FROM accounts WHERE account_id = p_from_account_id FOR UPDATE;
     INSERT INTO concurrency_lock_log (transaction_id, account_id, lock_order) VALUES (v_transaction_id, p_from_account_id, 1);
 

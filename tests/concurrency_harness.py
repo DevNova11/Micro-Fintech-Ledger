@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-# concurrency_harness.py -- empirical concurrency/correctness benchmark
+# Concurrency benchmark. Fires lots of transfers at the database from many
+# threads at once and measures what happens.
 #
-# exp 1: correctness under contention, READ COMMITTED vs SERIALIZABLE
-# exp 2: throughput/latency, READ COMMITTED vs SERIALIZABLE, low contention
-# exp 3: deadlock rate, fixed lock order vs naive order
+#   Experiment 1: few accounts (lots of fighting over the same rows),
+#                 READ COMMITTED vs SERIALIZABLE. Is the money still correct?
+#   Experiment 2: many accounts (little fighting), same two isolation levels.
+#                 How fast is it?
+#   Experiment 3: transfer_funds() vs naive_transfer_funds(). How many
+#                 deadlocks does locking in a fixed order prevent?
 #
-# usage:
-#   python3 concurrency_harness.py --dsn "dbname=fintech_ledger_test"
+# Run it with:
+#   python3 tests/concurrency_harness.py --dsn "dbname=fintech_ledger_test"
 
 import argparse
 import json
@@ -39,7 +43,7 @@ class RunResult:
 
 
 def seed_accounts(dsn: str, n_accounts: int, opening_balance: str = "1000000.0000"):
-    # reset + seed clean test accounts
+    # wipe the ledger tables and create fresh accounts to test on
     conn = psycopg2.connect(dsn)
     conn.autocommit = True
     cur = conn.cursor()
@@ -84,7 +88,8 @@ def seed_accounts(dsn: str, n_accounts: int, opening_balance: str = "1000000.000
 
 def worker(dsn, client_id, account_ids, n_txns, isolation_level, proc_name, result: RunResult,
            lock: threading.Lock, max_retries: int = 5):
-    # same idempotency key across retries of one logical transfer
+    # Each thread has its own connection. A retried transfer reuses its
+    # idempotency key, so a retry can never move the money twice.
     conn = psycopg2.connect(dsn)
     conn.autocommit = False
     cur = conn.cursor()
@@ -190,7 +195,10 @@ def summarize(label, result: RunResult, n_threads, n_txns_per_thread):
 
 
 def verify_ledger_integrity(dsn, account_ids, opening_balance):
-    # no money created/destroyed; cached_balance == opening + net(entry_lines)
+    # Did the benchmark break anything? Three checks:
+    #   - the audit hash chain is still intact
+    #   - every account's balance equals opening balance + its entry lines
+    #   - the total money in the system hasn't changed
     conn = psycopg2.connect(dsn)
     cur = conn.cursor()
 
