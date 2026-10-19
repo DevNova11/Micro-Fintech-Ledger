@@ -1,6 +1,5 @@
--- 15-relation schema (Chen ER diagram, Review 1 slide 14)
+-- 15-relation schema (matches the Chen ER diagram)
 
--- currencies
 CREATE TABLE currencies (
     currency_code   CHAR(3)      PRIMARY KEY,
     currency_name   VARCHAR(64)  NOT NULL,
@@ -8,7 +7,6 @@ CREATE TABLE currencies (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- institutions
 CREATE TABLE institutions (
     institution_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     institution_name VARCHAR(128) NOT NULL,
@@ -17,7 +15,6 @@ CREATE TABLE institutions (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- account_holder
 CREATE TABLE account_holder (
     account_holder_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     institution_id  BIGINT       NOT NULL REFERENCES institutions(institution_id),
@@ -31,7 +28,6 @@ CREATE TABLE account_holder (
 
 CREATE INDEX idx_account_holder_institution ON account_holder(institution_id);
 
--- api_clients
 CREATE TABLE api_clients (
     client_id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     institution_id  BIGINT       NOT NULL REFERENCES institutions(institution_id),
@@ -42,7 +38,6 @@ CREATE TABLE api_clients (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- accounts
 CREATE TABLE accounts (
     account_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     account_holder_id BIGINT     NOT NULL REFERENCES account_holder(account_holder_id),
@@ -61,7 +56,6 @@ CREATE TABLE accounts (
 CREATE INDEX idx_accounts_holder ON accounts(account_holder_id);
 CREATE INDEX idx_accounts_institution ON accounts(institution_id);
 
--- exchange_rates
 CREATE TABLE exchange_rates (
     rate_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     base_currency_code   CHAR(3) NOT NULL REFERENCES currencies(currency_code),
@@ -73,7 +67,6 @@ CREATE TABLE exchange_rates (
 
 CREATE INDEX idx_exchange_rates_pair_time ON exchange_rates(base_currency_code, target_currency_code, effective_at DESC);
 
--- settlements_batch
 CREATE TABLE settlements_batch (
     batch_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     batch_type      VARCHAR(16)  NOT NULL DEFAULT 'NET'
@@ -114,7 +107,6 @@ CREATE TABLE entry_lines (
 CREATE INDEX idx_entry_lines_transaction ON entry_lines(transaction_id);
 CREATE INDEX idx_entry_lines_account ON entry_lines(account_id);
 
--- idempotency_keys
 CREATE TABLE idempotency_keys (
     idempotency_key_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     client_id       BIGINT       NOT NULL REFERENCES api_clients(client_id),
@@ -125,7 +117,6 @@ CREATE TABLE idempotency_keys (
     CONSTRAINT uq_client_idempotency_key UNIQUE (client_id, idempotency_key)
 );
 
--- risk_alerts
 CREATE TABLE risk_alerts (
     alert_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     transaction_id  BIGINT       NOT NULL REFERENCES transactions(transaction_id),
@@ -151,7 +142,6 @@ CREATE TABLE audit_merkle_log (
 
 CREATE INDEX idx_audit_merkle_log_created ON audit_merkle_log(created_at);
 
--- concurrency_lock_log
 CREATE TABLE concurrency_lock_log (
     lock_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     transaction_id  BIGINT       NOT NULL REFERENCES transactions(transaction_id),
@@ -164,7 +154,6 @@ CREATE TABLE concurrency_lock_log (
 CREATE INDEX idx_concurrency_lock_log_transaction ON concurrency_lock_log(transaction_id);
 CREATE INDEX idx_concurrency_lock_log_account ON concurrency_lock_log(account_id);
 
--- reconciliation_runs
 CREATE TABLE reconciliation_runs (
     run_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     transaction_id  BIGINT       REFERENCES transactions(transaction_id),
@@ -176,7 +165,6 @@ CREATE TABLE reconciliation_runs (
 
 CREATE INDEX idx_reconciliation_runs_transaction ON reconciliation_runs(transaction_id);
 
--- merkle_batch_roots
 CREATE TABLE merkle_batch_roots (
     root_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     batch_id        BIGINT       NOT NULL REFERENCES settlements_batch(batch_id),

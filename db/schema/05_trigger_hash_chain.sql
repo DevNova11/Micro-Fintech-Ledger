@@ -1,6 +1,4 @@
--- Audit trail: every new entry line gets a log row whose hash covers the line
--- AND the previous log row's hash. Change any old row and every hash after it
--- stops matching, so tampering shows up.
+-- Each entry line gets a log row whose hash covers the line and the previous hash.
 
 CREATE OR REPLACE FUNCTION fn_append_audit_hash()
 RETURNS TRIGGER AS $$
@@ -8,7 +6,7 @@ DECLARE
     v_prev_hash   CHAR(64);
     v_payload     TEXT;
     v_entry_hash  CHAR(64);
-    c_chain_lock_key CONSTANT BIGINT := 918273645; -- one-at-a-time lock so the chain stays in a single line
+    c_chain_lock_key CONSTANT BIGINT := 918273645; -- serializes chain appends
 BEGIN
     PERFORM pg_advisory_xact_lock(c_chain_lock_key);
 
@@ -36,8 +34,7 @@ CREATE TRIGGER trg_entry_lines_hash_chain
     FOR EACH ROW
     EXECUTE FUNCTION fn_append_audit_hash();
 
--- Walks the whole chain and recomputes every hash.
--- Returns the first log_id that doesn't match, or NULL if everything is fine.
+-- Recomputes the chain; returns the first mismatching log_id, or NULL if intact.
 CREATE OR REPLACE FUNCTION fn_verify_audit_chain()
 RETURNS BIGINT AS $$
 DECLARE

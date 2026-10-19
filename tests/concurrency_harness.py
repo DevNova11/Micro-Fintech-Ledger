@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
-# Concurrency benchmark. Fires lots of transfers at the database from many
-# threads at once and measures what happens.
-#
-#   Experiment 1: few accounts (lots of fighting over the same rows),
-#                 READ COMMITTED vs SERIALIZABLE. Is the money still correct?
-#   Experiment 2: many accounts (little fighting), same two isolation levels.
-#                 How fast is it?
-#   Experiment 3: transfer_funds() vs naive_transfer_funds(). How many
-#                 deadlocks does locking in a fixed order prevent?
-#
-# Run it with:
-#   python3 tests/concurrency_harness.py --dsn "dbname=fintech_ledger_test"
+# Concurrency benchmark: many threads firing transfers at the database.
+#   Exp 1: few accounts (high contention), READ COMMITTED vs SERIALIZABLE; correctness.
+#   Exp 2: many accounts (low contention), same two levels; throughput and latency.
+#   Exp 3: transfer_funds() vs naive_transfer_funds(); deadlocks.
+# Run: python3 tests/concurrency_harness.py --dsn "dbname=fintech_ledger_test"
 
 import argparse
 import json
@@ -43,7 +36,7 @@ class RunResult:
 
 
 def seed_accounts(dsn: str, n_accounts: int, opening_balance: str = "1000000.0000"):
-    # wipe the ledger tables and create fresh accounts to test on
+    # reset ledger tables and seed fresh accounts
     conn = psycopg2.connect(dsn)
     conn.autocommit = True
     cur = conn.cursor()
@@ -88,8 +81,7 @@ def seed_accounts(dsn: str, n_accounts: int, opening_balance: str = "1000000.000
 
 def worker(dsn, client_id, account_ids, n_txns, isolation_level, proc_name, result: RunResult,
            lock: threading.Lock, max_retries: int = 5):
-    # Each thread has its own connection. A retried transfer reuses its
-    # idempotency key, so a retry can never move the money twice.
+    # one connection per thread; retries reuse the idempotency key
     conn = psycopg2.connect(dsn)
     conn.autocommit = False
     cur = conn.cursor()
@@ -195,10 +187,7 @@ def summarize(label, result: RunResult, n_threads, n_txns_per_thread):
 
 
 def verify_ledger_integrity(dsn, account_ids, opening_balance):
-    # Did the benchmark break anything? Three checks:
-    #   - the audit hash chain is still intact
-    #   - every account's balance equals opening balance + its entry lines
-    #   - the total money in the system hasn't changed
+    # checks: audit chain intact, per-account balances, total money unchanged
     conn = psycopg2.connect(dsn)
     cur = conn.cursor()
 

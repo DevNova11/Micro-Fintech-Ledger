@@ -4,8 +4,7 @@ INSERT INTO currencies (currency_code, currency_name) VALUES ('INR', 'Indian Rup
 INSERT INTO institutions (institution_name, swift_bic, country_code) VALUES ('Test Bank', 'TESTINBBXXX', 'IN');
 INSERT INTO account_holder (institution_id, full_name, kyc_status) VALUES (1, 'Alice', 'VERIFIED'), (1, 'Bob', 'VERIFIED');
 
--- opening balance: direct seed fixture, not routed through entry_lines;
--- everything after this moves through transfer_funds() only
+-- opening balances are a seed fixture; everything after moves via transfer_funds()
 INSERT INTO accounts (account_holder_id, institution_id, currency_code, account_number, cached_balance)
 VALUES (1, 1, 'INR', 'ACC-ALICE-001', 200000.00), (2, 1, 'INR', 'ACC-BOB-001', 500.00);
 INSERT INTO api_clients (institution_id, client_name, api_key_hash) VALUES (1, 'Test Mobile App', repeat('a', 64));

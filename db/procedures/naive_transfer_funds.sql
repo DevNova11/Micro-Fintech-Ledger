@@ -1,7 +1,5 @@
--- naive_transfer_funds(): same as transfer_funds() but WITHOUT the fixed lock order.
--- It locks the sender first and the receiver second, whatever their ids are.
--- Only used by the benchmark, to show how many deadlocks that causes.
--- Not meant for real use.
+-- Benchmark baseline: transfer_funds() without the fixed lock order
+-- (locks sender first, then receiver). Not for real use.
 
 CREATE OR REPLACE FUNCTION naive_transfer_funds(
     p_client_id        BIGINT,
@@ -42,7 +40,7 @@ BEGIN
     UPDATE idempotency_keys SET transaction_id = v_transaction_id
     WHERE client_id = p_client_id AND idempotency_key = p_idempotency_key;
 
-    -- no sorting here on purpose, this is the thing being tested
+    -- unordered locks on purpose
     PERFORM 1 FROM accounts WHERE account_id = p_from_account_id FOR UPDATE;
     INSERT INTO concurrency_lock_log (transaction_id, account_id, lock_order) VALUES (v_transaction_id, p_from_account_id, 1);
 

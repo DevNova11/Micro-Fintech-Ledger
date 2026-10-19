@@ -1,5 +1,4 @@
--- Ledger tables are append-only: you can add rows but never edit or delete them.
--- If a mistake needs fixing, post a new correcting transaction instead.
+-- Ledger tables are append-only; corrections are new compensating transactions.
 
 CREATE OR REPLACE FUNCTION fn_block_mutation()
 RETURNS TRIGGER AS $$

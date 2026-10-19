@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
-# Replays real PaySim transactions through transfer_funds().
-#
-# PaySim (Lopez-Rojas et al., 2016) is a public, simulated mobile-money
-# dataset. This script takes the first N rows of the CSV, makes one ledger
-# account for every sender/receiver name it sees, then sends the transfers
-# through transfer_funds() from many threads at once. It does this twice,
-# under READ COMMITTED and under SERIALIZABLE.
-#
-# The other benchmark (concurrency_harness.py) picks random account pairs.
-# Here the pattern comes from the dataset: a few merchants get lots of
-# payments, while most customers show up only once or twice.
-#
-# Run it with:
-#   python3 tests/paysim_replay.py --csv "<path>/paysim dataset.csv" \
-#       --dsn "dbname=fintech_ledger host=localhost user=postgres password=..." \
-#       --rows 20000 --threads 20
+# Replays the first N PaySim rows (Lopez-Rojas et al., 2016) through transfer_funds()
+# from many threads, under READ COMMITTED and SERIALIZABLE. One ledger account per
+# sender/receiver name, so contention follows the dataset instead of random pairs.
+# Run: python3 tests/paysim_replay.py --csv "<path>/paysim dataset.csv" \
+#          --dsn "dbname=fintech_ledger host=localhost user=postgres password=..." \
+#          --rows 20000 --threads 20
 
 import argparse
 import csv

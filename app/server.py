@@ -1,19 +1,7 @@
-"""
-Demo web app for the ledger.
+"""Demo web app: Flask UI and API over the ledger schema and transfer_funds().
 
-A small Flask server and one web page on top of the real database. Nothing
-here is fake: every button runs a real query, or calls transfer_funds(), on
-your PostgreSQL database. Send a transfer and you can watch the balances,
-risk alerts and audit chain change.
-
-Run it:
-    pip install -r requirements.txt
-    set PGPASSWORD=newpassword123        (Windows)
-    python server.py
-then open http://127.0.0.1:5050
-
-Database settings come from environment variables. The defaults below work
-for a normal local setup: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.
+Run: pip install -r requirements.txt && python server.py, then open http://127.0.0.1:5050
+Connection settings come from PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.
 """
 
 import os
@@ -42,7 +30,7 @@ def get_conn():
 
 
 def to_jsonable(value):
-    """Postgres gives us Decimal numbers, but JSON can't hold those, so turn them into floats."""
+    """Decimal is not JSON-serializable; convert to float."""
     if isinstance(value, Decimal):
         return float(value)
     return value
@@ -185,8 +173,7 @@ def transfer():
             transaction_id = cur.fetchone()[0]
         return jsonify({"ok": True, "transaction_id": transaction_id, "idempotency_key": idempotency_key})
     except psycopg2.Error as exc:
-        # The database raises an error for things like insufficient funds or
-        # sending to yourself. Just pass its message on to the page.
+        # surface the database's message (insufficient funds, self-transfer, ...)
         msg = exc.diag.message_primary if exc.diag and exc.diag.message_primary else str(exc)
         return jsonify({"ok": False, "error": msg}), 400
     finally:
@@ -195,7 +182,7 @@ def transfer():
 
 @app.route("/api/seed-demo", methods=["POST"])
 def seed_demo():
-    """Adds the demo accounts, but only if the database has none yet."""
+    """Add the demo accounts if the database has none."""
     conn = get_conn()
     try:
         with conn.cursor() as cur:
