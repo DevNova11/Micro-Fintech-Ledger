@@ -100,7 +100,6 @@ Beyond the basics, the page includes:
 - account search, and a click-through detail view for any transaction (postings, hashes, locks, risk alerts)
 - idempotent-replay button on the transfer form
 - lock-order log and a cached-balance-vs-ledger check
-- stored benchmark results as bar charts
 - demo tools (`app/demo_routes.py`): tamper with and restore a posting, send an unbalanced transfer,
   and fire 20 concurrent transfers. These change data, so use a demo database.
 

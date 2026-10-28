@@ -1,12 +1,9 @@
 """Extra demo endpoints: tamper/restore, unbalanced transfer, concurrency burst,
-lock log, reconciliation, transaction detail and benchmark results.
+lock log, reconciliation and transaction detail.
 
 server.py calls register(app, get_conn, row_to_dict).
 """
 
-import glob
-import json
-import os
 import threading
 import time
 import uuid
@@ -14,7 +11,6 @@ import uuid
 import psycopg2
 from flask import jsonify, request
 
-RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "results")
 TAMPER_DELTA = 1  # amount added to the tampered posting
 
 _state_lock = threading.Lock()
@@ -317,36 +313,3 @@ def register(app, get_conn, row_to_dict, invalidate_audit):
             return jsonify({"transaction": txn, "lines": lines, "locks": locks, "alerts": alerts})
         finally:
             conn.close()
-
-    # ---- stored benchmark results -----------------------------------------
-
-    @app.route("/api/benchmarks")
-    def benchmarks():
-        files = sorted(f for f in glob.glob(os.path.join(RESULTS_DIR, "*.json"))
-                       if "paysim" not in os.path.basename(f))
-        if not files:
-            return jsonify({"error": "No benchmark results found in tests/results."}), 404
-        with open(files[-1], encoding="utf-8") as fh:
-            data = json.load(fh)
-        exp = data.get("experiments", {})
-        labels = [
-            ("1_correctness_under_contention", "READ COMMITTED", "Read committed, 5 accts", "RC"),
-            ("1_correctness_under_contention", "SERIALIZABLE", "Serializable, 5 accts", "SER"),
-            ("2_throughput_vs_isolation", "READ COMMITTED", "Read committed, 80 accts", "RC"),
-            ("2_throughput_vs_isolation", "SERIALIZABLE", "Serializable, 80 accts", "SER"),
-            ("3_deadlock_fixed_vs_naive", "fixed_order", "Fixed lock order", "RC"),
-            ("3_deadlock_fixed_vs_naive", "naive_order", "Request-order locks", "SER"),
-        ]
-        rows = []
-        for group, key, label, kind in labels:
-            r = exp.get(group, {}).get(key)
-            if not r:
-                continue
-            rows.append({"group": group, "label": label, "kind": kind,
-                         "attempted": r.get("attempted"), "committed": r.get("committed"),
-                         "deadlocks": r.get("deadlocks"),
-                         "serialization_failures": r.get("serialization_failures"),
-                         "throughput": r.get("throughput_txn_per_s"),
-                         "p50_ms": r.get("latency_ms_p50"), "p99_ms": r.get("latency_ms_p99"),
-                         "wall_clock_s": r.get("wall_clock_s")})
-        return jsonify({"file": os.path.basename(files[-1]), "run_at": data.get("run_at"), "rows": rows})
