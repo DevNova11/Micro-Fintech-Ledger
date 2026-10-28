@@ -14,6 +14,8 @@ import psycopg2
 import psycopg2.extras
 from flask import Flask, jsonify, render_template, request
 
+import demo_routes
+
 app = Flask(__name__)
 
 DB_CONFIG = {
@@ -61,11 +63,21 @@ def health():
 def list_accounts():
     # Capped so a database with tens of thousands of accounts (e.g. after a
     # PaySim replay) cannot overload the browser. The total is in X-Total-Count.
+    # Optional ?q= filters by account number or holder name.
     limit = max(1, min(request.args.get("limit", default=50, type=int), 200))
+    q = request.args.get("q", default="", type=str).strip()
+    pattern = f"%{q}%"
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT count(*) FROM accounts")
+            cur.execute(
+                """
+                SELECT count(*) FROM accounts a
+                JOIN account_holder h ON h.account_holder_id = a.account_holder_id
+                WHERE %s = '' OR a.account_number ILIKE %s OR h.full_name ILIKE %s
+                """,
+                (q, pattern, pattern),
+            )
             total = cur.fetchone()[0]
             cur.execute(
                 """
@@ -73,10 +85,11 @@ def list_accounts():
                        a.currency_code, a.account_type, a.status, a.cached_balance
                 FROM accounts a
                 JOIN account_holder h ON h.account_holder_id = a.account_holder_id
+                WHERE %s = '' OR a.account_number ILIKE %s OR h.full_name ILIKE %s
                 ORDER BY a.account_id
                 LIMIT %s
                 """,
-                (limit,),
+                (q, pattern, pattern, limit),
             )
             rows = [row_to_dict(cur, r) for r in cur.fetchall()]
         resp = jsonify(rows)
@@ -150,9 +163,20 @@ def list_risk_alerts():
 AUDIT_RECHECK_SECONDS = 30
 _audit_lock = threading.Lock()
 _audit_cache = {}
+_audit_generation = 0
+
+
+def invalidate_audit():
+    """Forget the cached result (e.g. after a demo edit) so the next poll re-verifies."""
+    global _audit_generation
+    with _audit_lock:
+        _audit_generation += 1
+        _audit_cache.pop("log_rows", None)
 
 
 def _verify_chain(log_count):
+    with _audit_lock:
+        generation = _audit_generation
     broken_at, ok = None, False
     try:
         conn = get_conn()
@@ -167,7 +191,7 @@ def _verify_chain(log_count):
         pass
     with _audit_lock:
         _audit_cache["running"] = False
-        if ok:
+        if ok and generation == _audit_generation:
             _audit_cache.update(log_rows=log_count, broken_at_log_id=broken_at, at=time.time())
 
 
@@ -213,12 +237,20 @@ def transfer():
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            # a key that already points at a transaction means transfer_funds() will replay it
+            cur.execute(
+                "SELECT 1 FROM idempotency_keys WHERE client_id = %s AND idempotency_key = %s "
+                "AND transaction_id IS NOT NULL",
+                (client_id, idempotency_key),
+            )
+            replayed = cur.fetchone() is not None
             cur.execute(
                 "SELECT transfer_funds(%s, %s, %s, %s, %s, %s)",
                 (client_id, idempotency_key, from_account_id, to_account_id, amount, currency_code),
             )
             transaction_id = cur.fetchone()[0]
-        return jsonify({"ok": True, "transaction_id": transaction_id, "idempotency_key": idempotency_key})
+        return jsonify({"ok": True, "transaction_id": transaction_id,
+                        "idempotency_key": idempotency_key, "replayed": replayed})
     except psycopg2.Error as exc:
         # surface the database's message (insufficient funds, self-transfer, ...)
         msg = exc.diag.message_primary if exc.diag and exc.diag.message_primary else str(exc)
@@ -275,6 +307,9 @@ def seed_demo():
         return jsonify({"ok": False, "error": str(exc)}), 500
     finally:
         conn.close()
+
+
+demo_routes.register(app, get_conn, row_to_dict, invalidate_audit)
 
 
 if __name__ == "__main__":
