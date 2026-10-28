@@ -5,6 +5,8 @@ Connection settings come from PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.
 """
 
 import os
+import threading
+import time
 import uuid
 from decimal import Decimal
 
@@ -57,9 +59,14 @@ def health():
 
 @app.route("/api/accounts")
 def list_accounts():
+    # Capped so a database with tens of thousands of accounts (e.g. after a
+    # PaySim replay) cannot overload the browser. The total is in X-Total-Count.
+    limit = max(1, min(request.args.get("limit", default=50, type=int), 200))
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM accounts")
+            total = cur.fetchone()[0]
             cur.execute(
                 """
                 SELECT a.account_id, a.account_number, h.full_name AS holder_name,
@@ -67,10 +74,14 @@ def list_accounts():
                 FROM accounts a
                 JOIN account_holder h ON h.account_holder_id = a.account_holder_id
                 ORDER BY a.account_id
-                """
+                LIMIT %s
+                """,
+                (limit,),
             )
             rows = [row_to_dict(cur, r) for r in cur.fetchall()]
-        return jsonify(rows)
+        resp = jsonify(rows)
+        resp.headers["X-Total-Count"] = str(total)
+        return resp
     finally:
         conn.close()
 
@@ -136,18 +147,54 @@ def list_risk_alerts():
         conn.close()
 
 
+AUDIT_RECHECK_SECONDS = 30
+_audit_lock = threading.Lock()
+_audit_cache = {}
+
+
+def _verify_chain(log_count):
+    broken_at, ok = None, False
+    try:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT fn_verify_audit_chain()")
+                broken_at = cur.fetchone()[0]
+                ok = True
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    with _audit_lock:
+        _audit_cache["running"] = False
+        if ok:
+            _audit_cache.update(log_rows=log_count, broken_at_log_id=broken_at, at=time.time())
+
+
 @app.route("/api/audit")
 def audit_status():
+    # Verifying the chain re-hashes every posting, which is slow on a large log.
+    # Run it in the background; reuse the result while the log is unchanged,
+    # and re-check at least every AUDIT_RECHECK_SECONDS to catch in-place edits.
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT fn_verify_audit_chain() AS broken_at_log_id")
-            broken_at = cur.fetchone()[0]
             cur.execute("SELECT count(*) FROM audit_merkle_log")
             log_count = cur.fetchone()[0]
-        return jsonify({"intact": broken_at is None, "broken_at_log_id": broken_at, "log_rows": log_count})
     finally:
         conn.close()
+
+    with _audit_lock:
+        done = _audit_cache.get("log_rows") == log_count
+        stale = time.time() - _audit_cache.get("at", 0) > AUDIT_RECHECK_SECONDS
+        if (not done or stale) and not _audit_cache.get("running"):
+            _audit_cache["running"] = True
+            threading.Thread(target=_verify_chain, args=(log_count,), daemon=True).start()
+        if done:
+            broken_at = _audit_cache["broken_at_log_id"]
+            return jsonify({"status": "done", "intact": broken_at is None,
+                            "broken_at_log_id": broken_at, "log_rows": log_count})
+        return jsonify({"status": "checking", "log_rows": log_count})
 
 
 @app.route("/api/transfer", methods=["POST"])

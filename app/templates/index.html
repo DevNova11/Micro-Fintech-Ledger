@@ -126,7 +126,7 @@
 
   <div class="card" id="accounts-card">
     <h2>Accounts</h2>
-    <p class="note">cached_balance, straight from the accounts table</p>
+    <p class="note" id="accounts-note">cached_balance, straight from the accounts table</p>
     <div class="table-scroll">
       <table id="accounts-table">
         <thead><tr><th>Account</th><th>Holder</th><th>Ccy</th><th class="num">Balance</th></tr></thead>
@@ -205,15 +205,18 @@ async function api(path, opts) {
   const res = await fetch(path, opts);
   const data = await res.json();
   if (!res.ok && !opts) throw new Error(data.error || 'request failed');
-  return { ok: res.ok, data };
+  return { ok: res.ok, data, total: Number(res.headers.get('X-Total-Count')) || null };
 }
 
 async function loadAccounts() {
-  const { data: accounts } = await api('/api/accounts');
+  const { data: accounts, total } = await api('/api/accounts');
   const tbody = document.querySelector('#accounts-table tbody');
   tbody.innerHTML = '';
   document.getElementById('empty-state-card').hidden = accounts.length > 0;
   document.getElementById('accounts-card').hidden = accounts.length === 0;
+  document.getElementById('accounts-note').textContent = total && total > accounts.length
+    ? `cached_balance, straight from the accounts table (showing first ${accounts.length} of ${total})`
+    : 'cached_balance, straight from the accounts table';
 
   const fromSel = document.getElementById('from-account');
   const toSel = document.getElementById('to-account');
@@ -258,6 +261,12 @@ async function loadAudit() {
   const el = document.getElementById('audit-status');
   const dot = el.querySelector('.dot');
   const label = el.querySelector('span:last-child');
+  if (data.status === 'checking') {
+    dot.className = 'dot';
+    label.textContent = `Verifying ${data.log_rows} entries…`;
+    setTimeout(loadAudit, 3000);
+    return;
+  }
   dot.className = 'dot ' + (data.intact ? 'ok' : 'bad');
   label.textContent = data.intact
     ? `Intact — ${data.log_rows} entries hash-chained`
